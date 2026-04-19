@@ -1,30 +1,24 @@
 """
 OG Autoclicker con interfaz gráfica en Tkinter.
 
-Funciones incluidas:
+Incluye:
 - Dos paneles independientes: uno para click izquierdo y otro para click derecho.
-- Cada panel tiene su propia hotkey global capturada por pulsación real.
-- Reconoce teclado, botones del mouse y la ruedita (arriba/abajo) como hotkey.
-- Cada panel puede funcionar en modo hotkey o en modo Hold click.
-- En modo Hold click, la hotkey del panel funciona como seguro para habilitarlo o deshabilitarlo.
-- Barra de desplazamiento vertical para usar la app aunque la ventana sea pequeña.
-- Click de prueba, detener ahora, intervalo y tipo de click por separado.
-- Marca de agua visual con el texto: Developed By Valentino Galli / KidOGzz
+- Hotkeys globales capturadas por pulsación real.
+- Reconoce teclado, botones del mouse y la ruedita como hotkey.
+- Modo Hotkey o Hold click para cada panel.
+- Barra de desplazamiento vertical.
+- Guardado/carga de configuración en carpeta elegida por el usuario.
+- Selector de idioma Español / English.
+- Marca de agua visual: Developed By Valentino Galli / KidOGzz
 
 Dependencia externa:
     pip install pynput
-
-Notas:
-- Si usas el mismo botón para Hold click y para el autoclick, el primer clic automático
-  espera el intervalo configurado para evitar una sensación de doble clic instantáneo.
-- El Hold click prioriza el estado físico que sigue el listener global, ignorando los
-  clicks sintéticos del propio autoclicker para que no se corte tras el primer disparo.
-- En Linux/macOS también funciona, pero el comportamiento puede variar más según el sistema.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import sys
 import threading
 import time
@@ -40,10 +34,10 @@ except ImportError as exc:
         root = tk.Tk()
         root.withdraw()
         messagebox.showerror(
-            "Dependencia faltante",
-            "No se encontró 'pynput'.\n\nInstálalo con:\n\npip install pynput",
+            "Missing dependency",
+            "Could not find 'pynput'.\n\nInstall it with:\n\npip install pynput",
         )
-    raise SystemExit("Falta instalar 'pynput': pip install pynput") from exc
+    raise SystemExit("Missing dependency 'pynput': pip install pynput") from exc
 
 
 if sys.platform.startswith("win"):
@@ -64,78 +58,403 @@ else:
     _LLMHF_INJECTED = 0
 
 
-KEY_DISPLAY = {
-    "alt": "ALT",
-    "alt_gr": "ALT GR",
-    "alt_l": "ALT IZQ",
-    "alt_r": "ALT DER",
-    "backspace": "RETROCESO",
-    "caps_lock": "BLOQ MAYÚS",
-    "cmd": "CMD",
-    "cmd_l": "CMD IZQ",
-    "cmd_r": "CMD DER",
-    "ctrl": "CTRL",
-    "ctrl_l": "CTRL IZQ",
-    "ctrl_r": "CTRL DER",
-    "delete": "SUPR",
-    "down": "FLECHA ABAJO",
-    "end": "FIN",
-    "enter": "ENTER",
-    "esc": "ESC",
-    "f1": "F1",
-    "f2": "F2",
-    "f3": "F3",
-    "f4": "F4",
-    "f5": "F5",
-    "f6": "F6",
-    "f7": "F7",
-    "f8": "F8",
-    "f9": "F9",
-    "f10": "F10",
-    "f11": "F11",
-    "f12": "F12",
-    "home": "INICIO",
-    "insert": "INSERT",
-    "left": "FLECHA IZQ",
-    "menu": "MENÚ",
-    "num_lock": "BLOQ NUM",
-    "page_down": "RE PÁG",
-    "page_up": "AV PÁG",
-    "pause": "PAUSA",
-    "print_screen": "IMPR PANT",
-    "right": "FLECHA DER",
-    "scroll_lock": "BLOQ DESPL",
-    "shift": "SHIFT",
-    "shift_l": "SHIFT IZQ",
-    "shift_r": "SHIFT DER",
-    "space": "ESPACIO",
-    "tab": "TAB",
-    "up": "FLECHA ARRIBA",
+TRANSLATIONS = {
+    "es": {
+        "language_name": "Español",
+        "app_title": "OG Autoclicker",
+        "dependency_title": "Dependencia faltante",
+        "dependency_body": "No se encontró 'pynput'.\n\nInstálalo con:\n\npip install pynput",
+        "first_run_title": "Carpeta de datos",
+        "first_run_body": (
+            "Es la primera vez que inicias OG Autoclicker, o la carpeta anterior ya no existe.\n\n"
+            "Selecciona o crea una carpeta donde se guardarán tus configuraciones."
+        ),
+        "select_data_folder_title": "Selecciona o crea la carpeta de datos de OG Autoclicker",
+        "data_folder_required_title": "Carpeta requerida",
+        "data_folder_required_body": (
+            "OG Autoclicker necesita una carpeta para guardar tus datos.\n\n"
+            "Pulsa Reintentar para elegir una carpeta o Cancelar para cerrar la app."
+        ),
+        "data_folder_error_title": "No se pudo usar la carpeta",
+        "data_folder_error_body": "No se pudo preparar la carpeta seleccionada.\n\n{error}",
+        "data_folder_set_note": "Carpeta de datos configurada en: {folder}",
+        "data_folder_label": "Carpeta de datos: {folder}",
+        "data_folder_not_set": "Carpeta de datos: no configurada",
+        "change_folder_title": "Selecciona o crea una nueva carpeta de datos",
+        "change_folder_ok_title": "Carpeta actualizada",
+        "change_folder_ok_body": "La carpeta de datos se actualizó correctamente.",
+        "change_folder_error_title": "Error al cambiar carpeta",
+        "change_folder_error_body": "No se pudo cambiar la carpeta de datos.\n\n{error}",
+        "save_title": "Configuración guardada",
+        "save_body": "La configuración se guardó en:\n\n{path}",
+        "save_error_title": "No se pudo guardar",
+        "save_error_body": "Ocurrió un error al guardar la configuración.\n\n{error}",
+        "no_data_folder_title": "Sin carpeta de datos",
+        "no_data_folder_body": "Todavía no hay una carpeta de datos configurada.",
+        "load_missing_title": "Sin configuración guardada",
+        "load_missing_body": "Todavía no existe un archivo de configuración en la carpeta de datos actual.",
+        "load_error_title": "No se pudo cargar",
+        "load_error_body": "El archivo de configuración no se pudo leer.\n\n{error}",
+        "invalid_format_title": "Formato inválido",
+        "invalid_format_body": "El archivo de configuración no tiene un formato válido.",
+        "load_ok_title": "Configuración cargada",
+        "load_ok_body": "Se cargó la configuración desde:\n\n{path}",
+        "load_ok_note": "Configuración cargada correctamente.",
+        "open_folder_error_title": "No se pudo abrir la carpeta",
+        "open_folder_error_body": "No se pudo abrir la carpeta de datos.\n\n{error}",
+        "top_intro": (
+            "Ahora tienes dos configuraciones independientes: una para click izquierdo y otra para click derecho. "
+            "Cada una tiene su propia hotkey, su propio modo Hold click, su propio intervalo y su propio estado."
+        ),
+        "general_notes_title": "Notas generales",
+        "general_notes_body": (
+            "• Cada panel funciona por separado.\n"
+            "• En modo Hotkey: la hotkey activa o desactiva ese panel.\n"
+            "• En modo Hold click: mantener presionado el botón dispara clicks; al soltar, se detiene.\n"
+            "• En modo Hold click: la hotkey del panel funciona como seguro para habilitarlo o deshabilitarlo.\n"
+            "• Si usas el mismo botón para Hold y para autoclick, el primer autoclick espera el intervalo configurado."
+        ),
+        "storage_title": "Guardar configuración",
+        "save_now": "Guardar ahora",
+        "load_saved": "Cargar guardado",
+        "open_folder": "Abrir carpeta",
+        "change_folder": "Cambiar carpeta",
+        "storage_note": (
+            "La app también guarda automáticamente al cerrar. Si vuelves a abrirla, "
+            "intentará cargar la última configuración desde esta carpeta."
+        ),
+        "language_title": "Idioma / Language",
+        "language_label": "Idioma de la interfaz:",
+        "apply_language": "Guardar idioma",
+        "language_note": (
+            "Para no interferir con lo que ya funciona, el cambio completo de idioma se aplica al reiniciar la app."
+        ),
+        "language_no_change_title": "Sin cambios",
+        "language_no_change_body": "Ese idioma ya está activo.",
+        "language_saved_title": "Idioma guardado",
+        "language_saved_body": (
+            "El idioma se guardó correctamente.\n\n"
+            "Cierra y vuelve a abrir OG Autoclicker para aplicar todo el cambio sin riesgo."
+        ),
+        "language_save_error_title": "No se pudo guardar el idioma",
+        "language_save_error_body": "No se pudo guardar la preferencia de idioma.",
+        "watermark": "Developed By Valentino Galli / KidOGzz",
+        "left_click": "Click izquierdo",
+        "right_click": "Click derecho",
+        "middle_click": "Click medio",
+        "x1_click": "Botón lateral 1",
+        "x2_click": "Botón lateral 2",
+        "section_controls_only": "Este panel controla solamente el {title}.",
+        "activation_mode_title": "Modo de activación",
+        "hotkey_mode_label": "Hotkey global (activa / desactiva)",
+        "hold_mode_label": "Hold click (mientras mantengo presionado el click)",
+        "hotkey_group_title": "Hotkey global",
+        "hotkey_help": "Toca la casilla y luego presiona la tecla, botón del mouse o ruedita que quieres usar:",
+        "capture": "Capturar",
+        "clear": "Limpiar",
+        "hotkey_extra": (
+            "Admite teclado, botones del mouse y ruedita arriba/abajo. "
+            "Si el panel está en Hold click, esta hotkey funciona como seguro."
+        ),
+        "hold_group_title": "Modo Hold click",
+        "hold_same_check": "Usar el mismo botón que se autoclickea ({title})",
+        "hold_pick_help": "Si desactivas la casilla, puedes elegir otro botón para mantener apretado:",
+        "hold_button_label": "Botón a mantener presionado:",
+        "hold_group_note": (
+            "Mientras mantienes el botón apretado, dispara clicks; cuando sueltas el dedo, se detiene. "
+            "La hotkey de este panel puede desactivar el Hold si no quieres que arranque por accidente."
+        ),
+        "click_group_title": "Click automático",
+        "output_button_label": "Botón que se autoclickea:",
+        "click_type_label": "Tipo de click:",
+        "interval_label": "Intervalo (ms):",
+        "interval_help": "Ejemplo: 100 ms = 10 clicks por segundo aprox.",
+        "control_title": "Control",
+        "stop_now": "Detener ahora",
+        "test_click": "Click de prueba",
+        "status_title": "Estado",
+        "simple": "Simple",
+        "double": "Doble",
+        "hotkey_prompt": "Haz clic aquí para elegir hotkey",
+        "hotkey_capture_prompt": "Presione la tecla que desea usar para activar...",
+        "waiting_hotkey_note": "Esperando hotkey para {title}: tecla, botón del mouse o ruedita.",
+        "hotkey_cleared_note": "Hotkey borrada para {title}.",
+        "manual_stop_hold_disabled": (
+            "{title} detenido manualmente. El Hold quedó deshabilitado hasta volver a activarlo con su hotkey."
+        ),
+        "manual_stop_hold_available": (
+            "{title} detenido manualmente. Como ese panel no tiene hotkey, el Hold sigue disponible cuando vuelvas a mantener presionado."
+        ),
+        "manual_stop": "{title} detenido manualmente.",
+        "test_click_note": "{title}: click de prueba en {seconds:.2f} segundos para que puedas mover el cursor.",
+        "test_click_done": "Click de prueba realizado para {title}.",
+        "status_waiting_hotkey": "Esperando hotkey...",
+        "status_active": "Activo",
+        "status_stopped": "Detenido",
+        "status_hold_disabled": "Hold deshabilitado",
+        "status_hold_pressed": "Activo (mantener presionado)",
+        "status_hold_waiting": "Esperando que mantengas presionado",
+        "status_no_hotkey": "Sin hotkey",
+        "status_hotkey": "Hotkey: {display}",
+        "hotkey_captured_note": "Hotkey capturada para {title}: {display}",
+        "toggle_active": "{title}: {state}",
+        "toggle_active_on": "activado",
+        "toggle_active_off": "desactivado",
+        "toggle_hold": "{title}: hold {state}",
+        "toggle_hold_on": "habilitado",
+        "toggle_hold_off": "deshabilitado",
+        "trigger_by_binding": "{text} por {display}",
+        "wheel_up": "Ruedita arriba",
+        "wheel_down": "Ruedita abajo",
+        "key_alt_gr": "ALT GR",
+        "key_alt_l": "ALT IZQ",
+        "key_alt_r": "ALT DER",
+        "key_backspace": "RETROCESO",
+        "key_caps_lock": "BLOQ MAYÚS",
+        "key_cmd_l": "CMD IZQ",
+        "key_cmd_r": "CMD DER",
+        "key_ctrl_l": "CTRL IZQ",
+        "key_ctrl_r": "CTRL DER",
+        "key_delete": "SUPR",
+        "key_down": "FLECHA ABAJO",
+        "key_end": "FIN",
+        "key_enter": "ENTER",
+        "key_esc": "ESC",
+        "key_home": "INICIO",
+        "key_left": "FLECHA IZQ",
+        "key_menu": "MENÚ",
+        "key_num_lock": "BLOQ NUM",
+        "key_page_down": "RE PÁG",
+        "key_page_up": "AV PÁG",
+        "key_pause": "PAUSA",
+        "key_print_screen": "IMPR PANT",
+        "key_right": "FLECHA DER",
+        "key_scroll_lock": "BLOQ DESPL",
+        "key_shift_l": "SHIFT IZQ",
+        "key_shift_r": "SHIFT DER",
+        "key_space": "ESPACIO",
+        "key_tab": "TAB",
+        "key_up": "FLECHA ARRIBA",
+        "initial_note": (
+            "Ubicación del click: donde esté el cursor. "
+            "Ahora tienes un panel para izquierdo y otro para derecho."
+        ),
+    },
+    "en": {
+        "language_name": "English",
+        "app_title": "OG Autoclicker",
+        "dependency_title": "Missing dependency",
+        "dependency_body": "Could not find 'pynput'.\n\nInstall it with:\n\npip install pynput",
+        "first_run_title": "Data folder",
+        "first_run_body": (
+            "This is your first time starting OG Autoclicker, or the previous folder no longer exists.\n\n"
+            "Select or create a folder where your settings will be saved."
+        ),
+        "select_data_folder_title": "Select or create OG Autoclicker's data folder",
+        "data_folder_required_title": "Folder required",
+        "data_folder_required_body": (
+            "OG Autoclicker needs a folder to save your data.\n\n"
+            "Click Retry to choose a folder or Cancel to close the app."
+        ),
+        "data_folder_error_title": "Could not use the folder",
+        "data_folder_error_body": "Could not prepare the selected folder.\n\n{error}",
+        "data_folder_set_note": "Data folder set to: {folder}",
+        "data_folder_label": "Data folder: {folder}",
+        "data_folder_not_set": "Data folder: not configured",
+        "change_folder_title": "Select or create a new data folder",
+        "change_folder_ok_title": "Folder updated",
+        "change_folder_ok_body": "The data folder was updated successfully.",
+        "change_folder_error_title": "Error changing folder",
+        "change_folder_error_body": "Could not change the data folder.\n\n{error}",
+        "save_title": "Configuration saved",
+        "save_body": "The configuration was saved to:\n\n{path}",
+        "save_error_title": "Could not save",
+        "save_error_body": "An error occurred while saving the configuration.\n\n{error}",
+        "no_data_folder_title": "No data folder",
+        "no_data_folder_body": "There is no configured data folder yet.",
+        "load_missing_title": "No saved configuration",
+        "load_missing_body": "There is no configuration file yet in the current data folder.",
+        "load_error_title": "Could not load",
+        "load_error_body": "The configuration file could not be read.\n\n{error}",
+        "invalid_format_title": "Invalid format",
+        "invalid_format_body": "The configuration file has an invalid format.",
+        "load_ok_title": "Configuration loaded",
+        "load_ok_body": "The configuration was loaded from:\n\n{path}",
+        "load_ok_note": "Configuration loaded successfully.",
+        "open_folder_error_title": "Could not open folder",
+        "open_folder_error_body": "Could not open the data folder.\n\n{error}",
+        "top_intro": (
+            "You now have two independent configurations: one for left click and one for right click. "
+            "Each one has its own hotkey, Hold click mode, interval and state."
+        ),
+        "general_notes_title": "General notes",
+        "general_notes_body": (
+            "• Each panel works independently.\n"
+            "• In Hotkey mode: the hotkey turns that panel on or off.\n"
+            "• In Hold click mode: holding the button down fires clicks; releasing it stops them.\n"
+            "• In Hold click mode: the panel hotkey acts as a safety toggle to enable or disable Hold.\n"
+            "• If you use the same button for Hold and autoclick, the first autoclick waits for the configured interval."
+        ),
+        "storage_title": "Save configuration",
+        "save_now": "Save now",
+        "load_saved": "Load saved",
+        "open_folder": "Open folder",
+        "change_folder": "Change folder",
+        "storage_note": (
+            "The app also saves automatically when closing. When you open it again, "
+            "it will try to load the latest configuration from this folder."
+        ),
+        "language_title": "Language / Idioma",
+        "language_label": "Interface language:",
+        "apply_language": "Save language",
+        "language_note": (
+            "To avoid interfering with what already works, the full language change is applied after restarting the app."
+        ),
+        "language_no_change_title": "No changes",
+        "language_no_change_body": "That language is already active.",
+        "language_saved_title": "Language saved",
+        "language_saved_body": (
+            "The language was saved successfully.\n\n"
+            "Close and reopen OG Autoclicker to apply the full change safely."
+        ),
+        "language_save_error_title": "Could not save language",
+        "language_save_error_body": "Could not save the language preference.",
+        "watermark": "Developed By Valentino Galli / KidOGzz",
+        "left_click": "Left Click",
+        "right_click": "Right Click",
+        "middle_click": "Middle Click",
+        "x1_click": "Side Button 1",
+        "x2_click": "Side Button 2",
+        "section_controls_only": "This panel controls only {title}.",
+        "activation_mode_title": "Activation mode",
+        "hotkey_mode_label": "Global hotkey (toggle on / off)",
+        "hold_mode_label": "Hold click (while I keep the click pressed)",
+        "hotkey_group_title": "Global hotkey",
+        "hotkey_help": "Click the box and then press the key, mouse button or wheel action you want to use:",
+        "capture": "Capture",
+        "clear": "Clear",
+        "hotkey_extra": (
+            "Supports keyboard, mouse buttons and mouse wheel up/down. "
+            "If the panel is in Hold click, this hotkey works as a safety toggle."
+        ),
+        "hold_group_title": "Hold click mode",
+        "hold_same_check": "Use the same button that gets auto-clicked ({title})",
+        "hold_pick_help": "If you uncheck the box, you can choose a different button to keep pressed:",
+        "hold_button_label": "Button to keep pressed:",
+        "hold_group_note": (
+            "While you keep the button pressed, it fires clicks; when you release it, it stops. "
+            "This panel hotkey can disable Hold if you do not want it to start by accident."
+        ),
+        "click_group_title": "Automatic click",
+        "output_button_label": "Button being auto-clicked:",
+        "click_type_label": "Click type:",
+        "interval_label": "Interval (ms):",
+        "interval_help": "Example: 100 ms = about 10 clicks per second.",
+        "control_title": "Control",
+        "stop_now": "Stop now",
+        "test_click": "Test click",
+        "status_title": "Status",
+        "simple": "Single",
+        "double": "Double",
+        "hotkey_prompt": "Click here to choose a hotkey",
+        "hotkey_capture_prompt": "Press the key you want to use to activate...",
+        "waiting_hotkey_note": "Waiting for hotkey for {title}: key, mouse button or wheel.",
+        "hotkey_cleared_note": "Hotkey cleared for {title}.",
+        "manual_stop_hold_disabled": (
+            "{title} stopped manually. Hold was disabled until you enable it again with its hotkey."
+        ),
+        "manual_stop_hold_available": (
+            "{title} stopped manually. Since that panel has no hotkey, Hold stays available when you press and hold again."
+        ),
+        "manual_stop": "{title} stopped manually.",
+        "test_click_note": "{title}: test click in {seconds:.2f} seconds so you can move the cursor.",
+        "test_click_done": "Test click completed for {title}.",
+        "status_waiting_hotkey": "Waiting for hotkey...",
+        "status_active": "Active",
+        "status_stopped": "Stopped",
+        "status_hold_disabled": "Hold disabled",
+        "status_hold_pressed": "Active (holding pressed)",
+        "status_hold_waiting": "Waiting for you to hold the button",
+        "status_no_hotkey": "No hotkey",
+        "status_hotkey": "Hotkey: {display}",
+        "hotkey_captured_note": "Hotkey captured for {title}: {display}",
+        "toggle_active": "{title}: {state}",
+        "toggle_active_on": "enabled",
+        "toggle_active_off": "disabled",
+        "toggle_hold": "{title}: hold {state}",
+        "toggle_hold_on": "enabled",
+        "toggle_hold_off": "disabled",
+        "trigger_by_binding": "{text} by {display}",
+        "wheel_up": "Wheel up",
+        "wheel_down": "Wheel down",
+        "key_alt_gr": "ALT GR",
+        "key_alt_l": "LEFT ALT",
+        "key_alt_r": "RIGHT ALT",
+        "key_backspace": "BACKSPACE",
+        "key_caps_lock": "CAPS LOCK",
+        "key_cmd_l": "LEFT CMD",
+        "key_cmd_r": "RIGHT CMD",
+        "key_ctrl_l": "LEFT CTRL",
+        "key_ctrl_r": "RIGHT CTRL",
+        "key_delete": "DELETE",
+        "key_down": "DOWN ARROW",
+        "key_end": "END",
+        "key_enter": "ENTER",
+        "key_esc": "ESC",
+        "key_home": "HOME",
+        "key_left": "LEFT ARROW",
+        "key_menu": "MENU",
+        "key_num_lock": "NUM LOCK",
+        "key_page_down": "PAGE DOWN",
+        "key_page_up": "PAGE UP",
+        "key_pause": "PAUSE",
+        "key_print_screen": "PRINT SCREEN",
+        "key_right": "RIGHT ARROW",
+        "key_scroll_lock": "SCROLL LOCK",
+        "key_shift_l": "LEFT SHIFT",
+        "key_shift_r": "RIGHT SHIFT",
+        "key_space": "SPACE",
+        "key_tab": "TAB",
+        "key_up": "UP ARROW",
+        "initial_note": (
+            "Click position: wherever the cursor is. "
+            "You now have one panel for left click and another for right click."
+        ),
+    },
 }
 
-MOUSE_DISPLAY = {
-    "left": "Click izquierdo",
-    "right": "Click derecho",
-    "middle": "Click medio",
-    "x1": "Botón lateral 1",
-    "x2": "Botón lateral 2",
-}
 
-MOUSE_OPTION_TO_NAME = {
-    "Click izquierdo": "left",
-    "Click derecho": "right",
-    "Click medio": "middle",
+KEY_TEXT_KEYS = {
+    "alt_gr": "key_alt_gr",
+    "alt_l": "key_alt_l",
+    "alt_r": "key_alt_r",
+    "backspace": "key_backspace",
+    "caps_lock": "key_caps_lock",
+    "cmd_l": "key_cmd_l",
+    "cmd_r": "key_cmd_r",
+    "ctrl_l": "key_ctrl_l",
+    "ctrl_r": "key_ctrl_r",
+    "delete": "key_delete",
+    "down": "key_down",
+    "end": "key_end",
+    "enter": "key_enter",
+    "esc": "key_esc",
+    "home": "key_home",
+    "left": "key_left",
+    "menu": "key_menu",
+    "num_lock": "key_num_lock",
+    "page_down": "key_page_down",
+    "page_up": "key_page_up",
+    "pause": "key_pause",
+    "print_screen": "key_print_screen",
+    "right": "key_right",
+    "scroll_lock": "key_scroll_lock",
+    "shift_l": "key_shift_l",
+    "shift_r": "key_shift_r",
+    "space": "key_space",
+    "tab": "key_tab",
+    "up": "key_up",
 }
-if hasattr(mouse.Button, "x1"):
-    MOUSE_OPTION_TO_NAME["Botón lateral 1"] = "x1"
-if hasattr(mouse.Button, "x2"):
-    MOUSE_OPTION_TO_NAME["Botón lateral 2"] = "x2"
-
-CLICK_TYPE_TO_COUNT = {
-    "Simple": 1,
-    "Doble": 2,
-}
-
 
 APP_STATE_DIR = Path.home() / ".og_autoclicker"
 DATA_FOLDER_LOCATOR = APP_STATE_DIR / "data_folder.json"
@@ -213,8 +532,9 @@ class ClickProfile:
 class AutoClickerApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
-        self.root.title("OG Autoclicker")
-        self.root.geometry("560x860")
+        self.current_language = "es"
+        self.root.title(self.t("app_title"))
+        self.root.geometry("560x920")
         self.root.minsize(500, 430)
 
         self.lock = threading.RLock()
@@ -235,17 +555,21 @@ class AutoClickerApp:
         self.mouse_listener: mouse.Listener | None = None
         self.worker_thread: threading.Thread | None = None
 
-        self.note_var = tk.StringVar(
-            value=(
-                "Ubicación del click: donde esté el cursor. "
-                "Ahora tienes un panel para izquierdo y otro para derecho."
-            )
-        )
-        self.data_folder_var = tk.StringVar(value="Carpeta de datos: no configurada")
+        self.note_var = tk.StringVar(value=self.t("initial_note"))
+        self.data_folder_var = tk.StringVar(value=self.t("data_folder_not_set"))
+        self.language_var = tk.StringVar(value=self.language_label(self.current_language))
 
         if not self._ensure_data_folder_selected():
             self.root.after(0, self.root.destroy)
             return
+
+        self.current_language = self._load_language_preference()
+        self.root.title(self.t("app_title"))
+        self.note_var.set(self.t("initial_note"))
+        self.data_folder_var.set(
+            self.t("data_folder_label", folder=self.data_folder) if self.data_folder else self.t("data_folder_not_set")
+        )
+        self.language_var.set(self.language_label(self.current_language))
 
         self.profiles: dict[str, ClickProfile] = {}
         self._create_profiles()
@@ -260,24 +584,86 @@ class AutoClickerApp:
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.initialized = True
 
+    def t(self, key: str, **kwargs) -> str:
+        language_pack = TRANSLATIONS.get(self.current_language, TRANSLATIONS["es"])
+        text = language_pack.get(key, TRANSLATIONS["es"].get(key, key))
+        return text.format(**kwargs) if kwargs else text
+
+    def language_label(self, code: str) -> str:
+        return TRANSLATIONS.get(code, TRANSLATIONS["es"]).get("language_name", code)
+
+    def selected_language_code(self) -> str:
+        label = self.language_var.get().strip()
+        for code in ("es", "en"):
+            if self.language_label(code) == label:
+                return code
+        return self.current_language
+
+    def mouse_label(self, name: str) -> str:
+        if name == "left":
+            return self.t("left_click")
+        if name == "right":
+            return self.t("right_click")
+        if name == "middle":
+            return self.t("middle_click")
+        if name == "x1":
+            return self.t("x1_click")
+        if name == "x2":
+            return self.t("x2_click")
+        return name
+
+    def mouse_button_names(self) -> list[str]:
+        names = ["left", "right", "middle"]
+        if hasattr(mouse.Button, "x1"):
+            names.append("x1")
+        if hasattr(mouse.Button, "x2"):
+            names.append("x2")
+        return names
+
+    def mouse_option_labels(self) -> list[str]:
+        return [self.mouse_label(name) for name in self.mouse_button_names()]
+
+    def mouse_name_from_label(self, label: str) -> str:
+        for name in self.mouse_button_names():
+            if self.mouse_label(name) == label:
+                return name
+        return "left"
+
+    def click_type_label(self, count: int) -> str:
+        return self.t("double") if count == 2 else self.t("simple")
+
+    def click_count_from_label(self, label: str) -> int:
+        return 2 if label == self.t("double") else 1
+
+    def default_hotkey_prompt(self) -> str:
+        return self.t("hotkey_prompt")
+
+    def _load_language_preference(self) -> str:
+        if self.config_path is None or not self.config_path.exists():
+            return "es"
+        try:
+            data = json.loads(self.config_path.read_text(encoding="utf-8"))
+            language = data.get("language", "es")
+            return language if language in {"es", "en"} else "es"
+        except Exception:
+            return "es"
+
     def _ensure_data_folder_selected(self) -> bool:
-        locator_path = DATA_FOLDER_LOCATOR
-        stored_folder = self._read_data_folder_from_locator(locator_path)
+        stored_folder = self._read_data_folder_from_locator(DATA_FOLDER_LOCATOR)
         if stored_folder is not None and stored_folder.exists():
             self._set_data_folder(stored_folder)
             return True
 
         while True:
             messagebox.showinfo(
-                "Carpeta de datos",
-                "Es la primera vez que inicias OG Autoclicker, o la carpeta anterior ya no existe.\n\n"
-                "Selecciona o crea una carpeta donde se guardarán tus configuraciones.",
+                self.t("first_run_title"),
+                self.t("first_run_body"),
                 parent=self.root,
             )
             chosen = filedialog.askdirectory(
                 parent=self.root,
                 mustexist=False,
-                title="Selecciona o crea la carpeta de datos de OG Autoclicker",
+                title=self.t("select_data_folder_title"),
             )
             if chosen:
                 folder = Path(chosen).expanduser()
@@ -285,22 +671,19 @@ class AutoClickerApp:
                     folder.mkdir(parents=True, exist_ok=True)
                     self._set_data_folder(folder)
                     self._save_data_folder_locator()
-                    self.note_var.set(
-                        f"Carpeta de datos configurada en: {folder}"
-                    )
+                    self.note_var.set(self.t("data_folder_set_note", folder=folder))
                     return True
                 except Exception as exc:
                     messagebox.showerror(
-                        "No se pudo usar la carpeta",
-                        f"No se pudo preparar la carpeta seleccionada.\n\n{exc}",
+                        self.t("data_folder_error_title"),
+                        self.t("data_folder_error_body", error=exc),
                         parent=self.root,
                     )
                     continue
 
             retry = messagebox.askretrycancel(
-                "Carpeta requerida",
-                "OG Autoclicker necesita una carpeta para guardar tus datos.\n\n"
-                "Pulsa Reintentar para elegir una carpeta o Cancelar para cerrar la app.",
+                self.t("data_folder_required_title"),
+                self.t("data_folder_required_body"),
                 parent=self.root,
             )
             if not retry:
@@ -332,13 +715,13 @@ class AutoClickerApp:
         folder.mkdir(parents=True, exist_ok=True)
         self.data_folder = folder
         self.config_path = folder / CONFIG_FILENAME
-        self.data_folder_var.set(f"Carpeta de datos: {folder}")
+        self.data_folder_var.set(self.t("data_folder_label", folder=folder))
 
     def _change_data_folder(self) -> None:
         chosen = filedialog.askdirectory(
             parent=self.root,
             mustexist=False,
-            title="Selecciona o crea una nueva carpeta de datos",
+            title=self.t("change_folder_title"),
             initialdir=str(self.data_folder) if self.data_folder else None,
         )
         if not chosen:
@@ -350,16 +733,16 @@ class AutoClickerApp:
             self._set_data_folder(new_folder)
             self._save_data_folder_locator()
             self._save_config(show_message=False)
-            self.note_var.set(f"Nueva carpeta de datos: {new_folder}")
+            self.note_var.set(self.t("data_folder_set_note", folder=new_folder))
             messagebox.showinfo(
-                "Carpeta actualizada",
-                "La carpeta de datos se actualizó correctamente.",
+                self.t("change_folder_ok_title"),
+                self.t("change_folder_ok_body"),
                 parent=self.root,
             )
         except Exception as exc:
             messagebox.showerror(
-                "Error al cambiar carpeta",
-                f"No se pudo cambiar la carpeta de datos.\n\n{exc}",
+                self.t("change_folder_error_title"),
+                self.t("change_folder_error_body", error=exc),
                 parent=self.root,
             )
 
@@ -367,8 +750,8 @@ class AutoClickerApp:
         if self.config_path is None:
             if show_message:
                 messagebox.showerror(
-                    "Sin carpeta de datos",
-                    "Todavía no hay una carpeta de datos configurada.",
+                    self.t("no_data_folder_title"),
+                    self.t("no_data_folder_body"),
                     parent=self.root,
                 )
             return False
@@ -386,16 +769,16 @@ class AutoClickerApp:
         except Exception as exc:
             if show_message:
                 messagebox.showerror(
-                    "No se pudo guardar",
-                    f"Ocurrió un error al guardar la configuración.\n\n{exc}",
+                    self.t("save_error_title"),
+                    self.t("save_error_body", error=exc),
                     parent=self.root,
                 )
             return False
 
         if show_message:
             messagebox.showinfo(
-                "Configuración guardada",
-                f"La configuración se guardó en:\n\n{self.config_path}",
+                self.t("save_title"),
+                self.t("save_body", path=self.config_path),
                 parent=self.root,
             )
         return True
@@ -415,8 +798,9 @@ class AutoClickerApp:
                 }
 
         return {
-            "version": 1,
+            "version": 2,
             "saved_at_epoch": time.time(),
+            "language": self.selected_language_code(),
             "window_geometry": self.root.geometry(),
             "profiles": profiles_payload,
         }
@@ -425,8 +809,8 @@ class AutoClickerApp:
         if self.config_path is None or not self.config_path.exists():
             if show_message:
                 messagebox.showinfo(
-                    "Sin configuración guardada",
-                    "Todavía no existe un archivo de configuración en la carpeta de datos actual.",
+                    self.t("load_missing_title"),
+                    self.t("load_missing_body"),
                     parent=self.root,
                 )
             return False
@@ -436,8 +820,8 @@ class AutoClickerApp:
         except Exception as exc:
             if show_message:
                 messagebox.showerror(
-                    "No se pudo cargar",
-                    f"El archivo de configuración no se pudo leer.\n\n{exc}",
+                    self.t("load_error_title"),
+                    self.t("load_error_body", error=exc),
                     parent=self.root,
                 )
             return False
@@ -446,11 +830,13 @@ class AutoClickerApp:
         if not isinstance(profiles_data, dict):
             if show_message:
                 messagebox.showerror(
-                    "Formato inválido",
-                    "El archivo de configuración no tiene un formato válido.",
+                    self.t("invalid_format_title"),
+                    self.t("invalid_format_body"),
                     parent=self.root,
                 )
             return False
+
+        self.language_var.set(self.language_label(self.current_language))
 
         for profile_key, profile in self.profiles.items():
             saved = profiles_data.get(profile_key, {})
@@ -463,7 +849,7 @@ class AutoClickerApp:
 
             hold_same = bool(saved.get("hold_same_as_output", True))
             hold_button = saved.get("hold_button", profile.output_button)
-            if hold_button not in MOUSE_DISPLAY:
+            if hold_button not in self.mouse_button_names():
                 hold_button = profile.output_button
 
             click_count = int(saved.get("click_count", 1))
@@ -489,8 +875,8 @@ class AutoClickerApp:
 
             profile.mode_var.set(mode)
             profile.hold_same_var.set(hold_same)
-            profile.hold_button_var.set(MOUSE_DISPLAY.get(hold_button, MOUSE_DISPLAY[profile.output_button]))
-            profile.click_type_var.set("Doble" if click_count == 2 else "Simple")
+            profile.hold_button_var.set(self.mouse_label(hold_button))
+            profile.click_type_var.set(self.click_type_label(click_count))
             profile.interval_var.set(str(interval_ms))
 
             with self.lock:
@@ -500,7 +886,7 @@ class AutoClickerApp:
                 profile.hold_engaged = False
                 profile.next_due_at = 0.0
 
-            profile.hotkey_text_var.set(binding["display"] if binding else "Haz clic aquí para elegir hotkey")
+            profile.hotkey_text_var.set(self._format_binding_display(binding) if binding else self.default_hotkey_prompt())
             self._sync_profile_from_ui(profile_key)
             self._update_profile_widgets(profile_key)
 
@@ -511,11 +897,11 @@ class AutoClickerApp:
             except Exception:
                 pass
 
-        self.note_var.set("Configuración cargada correctamente.")
+        self.note_var.set(self.t("load_ok_note"))
         if show_message:
             messagebox.showinfo(
-                "Configuración cargada",
-                f"Se cargó la configuración desde:\n\n{self.config_path}",
+                self.t("load_ok_title"),
+                self.t("load_ok_body", path=self.config_path),
                 parent=self.root,
             )
         return True
@@ -526,53 +912,73 @@ class AutoClickerApp:
             return False
         return all(
             isinstance(binding.get(field), str) and binding.get(field)
-            for field in ("kind", "code", "display")
+            for field in ("kind", "code")
         )
 
     def _open_data_folder(self) -> None:
         if self.data_folder is None:
             messagebox.showerror(
-                "Sin carpeta de datos",
-                "Todavía no hay una carpeta de datos configurada.",
+                self.t("no_data_folder_title"),
+                self.t("no_data_folder_body"),
                 parent=self.root,
             )
             return
 
         try:
             if sys.platform.startswith("win"):
-                import os
-
                 os.startfile(str(self.data_folder))
             elif sys.platform == "darwin":
                 import subprocess
-
                 subprocess.Popen(["open", str(self.data_folder)])
             else:
                 import subprocess
-
                 subprocess.Popen(["xdg-open", str(self.data_folder)])
         except Exception as exc:
             messagebox.showerror(
-                "No se pudo abrir la carpeta",
-                f"No se pudo abrir la carpeta de datos.\n\n{exc}",
+                self.t("open_folder_error_title"),
+                self.t("open_folder_error_body", error=exc),
                 parent=self.root,
             )
 
+    def _apply_language_change(self) -> None:
+        selected = self.selected_language_code()
+        if selected == self.current_language:
+            messagebox.showinfo(
+                self.t("language_no_change_title"),
+                self.t("language_no_change_body"),
+                parent=self.root,
+            )
+            return
+
+        if not self._save_config(show_message=False):
+            messagebox.showerror(
+                self.t("language_save_error_title"),
+                self.t("language_save_error_body"),
+                parent=self.root,
+            )
+            return
+
+        messagebox.showinfo(
+            self.t("language_saved_title"),
+            self.t("language_saved_body"),
+            parent=self.root,
+        )
+
     def _create_profiles(self) -> None:
-        for key, title in (("left", "Click izquierdo"), ("right", "Click derecho")):
-            default_hold_name = MOUSE_DISPLAY.get(key, key)
+        for key in ("left", "right"):
+            title = self.mouse_label(key)
             profile = ClickProfile(
                 key=key,
                 title=title,
                 output_button=key,
                 hold_button=key,
                 mode_var=tk.StringVar(value="hotkey"),
-                hotkey_text_var=tk.StringVar(value="Haz clic aquí para elegir hotkey"),
+                hotkey_text_var=tk.StringVar(value=self.default_hotkey_prompt()),
                 hold_same_var=tk.BooleanVar(value=True),
-                hold_button_var=tk.StringVar(value=default_hold_name),
-                click_type_var=tk.StringVar(value="Simple"),
+                hold_button_var=tk.StringVar(value=self.mouse_label(key)),
+                click_type_var=tk.StringVar(value=self.click_type_label(1)),
                 interval_var=tk.StringVar(value="100"),
-                status_var=tk.StringVar(value="Detenido | Sin hotkey"),
+                status_var=tk.StringVar(value=f"{self.t('status_stopped')} | {self.t('status_no_hotkey')}"),
             )
 
             for var in (
@@ -603,16 +1009,13 @@ class AutoClickerApp:
 
         ttk.Label(
             body,
-            text="OG Autoclicker",
+            text=self.t("app_title"),
             font=("Segoe UI", 16, "bold"),
         ).grid(row=0, column=0, sticky="w", padx=14, pady=(14, 6))
 
         ttk.Label(
             body,
-            text=(
-                "Ahora tienes dos configuraciones independientes: una para click izquierdo y otra para click derecho. "
-                "Cada una tiene su propia hotkey, su propio modo Hold click, su propio intervalo y su propio estado."
-            ),
+            text=self.t("top_intro"),
             wraplength=500,
             justify="left",
         ).grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 10))
@@ -620,7 +1023,7 @@ class AutoClickerApp:
         self._build_profile_section(body, row=2, profile=self.profiles["left"])
         self._build_profile_section(body, row=3, profile=self.profiles["right"])
 
-        note_frame = ttk.LabelFrame(body, text="Notas generales", padding=12)
+        note_frame = ttk.LabelFrame(body, text=self.t("general_notes_title"), padding=12)
         note_frame.grid(row=4, column=0, sticky="ew", padx=14, pady=(6, 8))
         note_frame.columnconfigure(0, weight=1)
 
@@ -633,18 +1036,12 @@ class AutoClickerApp:
 
         ttk.Label(
             note_frame,
-            text=(
-                "• Cada panel funciona por separado.\n"
-                "• En modo Hotkey: la hotkey activa o desactiva ese panel.\n"
-                "• En modo Hold click: mantener presionado el botón dispara clicks; al soltar, se detiene.\n"
-                "• En modo Hold click: la hotkey del panel funciona como seguro para habilitarlo o deshabilitarlo.\n"
-                "• Si usas el mismo botón para Hold y para autoclick, el primer autoclick espera el intervalo configurado."
-            ),
+            text=self.t("general_notes_body"),
             wraplength=490,
             justify="left",
         ).grid(row=1, column=0, sticky="w", pady=(10, 0))
 
-        storage_frame = ttk.LabelFrame(body, text="Guardar configuración", padding=12)
+        storage_frame = ttk.LabelFrame(body, text=self.t("storage_title"), padding=12)
         storage_frame.grid(row=5, column=0, sticky="ew", padx=14, pady=(0, 8))
         storage_frame.columnconfigure(0, weight=1)
         storage_frame.columnconfigure(1, weight=1)
@@ -656,36 +1053,61 @@ class AutoClickerApp:
             justify="left",
         ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
 
-        ttk.Button(storage_frame, text="Guardar ahora", command=self._save_config).grid(
+        ttk.Button(storage_frame, text=self.t("save_now"), command=self._save_config).grid(
             row=1, column=0, sticky="ew", padx=(0, 6), pady=3
         )
-        ttk.Button(storage_frame, text="Cargar guardado", command=self._load_config).grid(
+        ttk.Button(storage_frame, text=self.t("load_saved"), command=self._load_config).grid(
             row=1, column=1, sticky="ew", padx=(6, 0), pady=3
         )
-        ttk.Button(storage_frame, text="Abrir carpeta", command=self._open_data_folder).grid(
+        ttk.Button(storage_frame, text=self.t("open_folder"), command=self._open_data_folder).grid(
             row=2, column=0, sticky="ew", padx=(0, 6), pady=3
         )
-        ttk.Button(storage_frame, text="Cambiar carpeta", command=self._change_data_folder).grid(
+        ttk.Button(storage_frame, text=self.t("change_folder"), command=self._change_data_folder).grid(
             row=2, column=1, sticky="ew", padx=(6, 0), pady=3
         )
 
         ttk.Label(
             storage_frame,
-            text=(
-                "La app también guarda automáticamente al cerrar. Si vuelves a abrirla, "
-                "intentará cargar la última configuración desde esta carpeta."
-            ),
+            text=self.t("storage_note"),
             wraplength=490,
             justify="left",
         ).grid(row=3, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
+        language_frame = ttk.LabelFrame(body, text=self.t("language_title"), padding=12)
+        language_frame.grid(row=6, column=0, sticky="ew", padx=14, pady=(0, 8))
+        language_frame.columnconfigure(1, weight=1)
+
+        ttk.Label(language_frame, text=self.t("language_label")).grid(
+            row=0, column=0, sticky="w", padx=(0, 10)
+        )
+
+        ttk.Combobox(
+            language_frame,
+            textvariable=self.language_var,
+            state="readonly",
+            values=[self.language_label("es"), self.language_label("en")],
+        ).grid(row=0, column=1, sticky="ew")
+
+        ttk.Button(
+            language_frame,
+            text=self.t("apply_language"),
+            command=self._apply_language_change,
+        ).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+
+        ttk.Label(
+            language_frame,
+            text=self.t("language_note"),
+            wraplength=490,
+            justify="left",
+        ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(8, 0))
+
         ttk.Label(
             body,
-            text="Developed By Valentino Galli / KidOGzz",
+            text=self.t("watermark"),
             font=("Segoe UI", 9, "italic"),
             anchor="center",
             justify="center",
-        ).grid(row=6, column=0, sticky="ew", padx=14, pady=(0, 16))
+        ).grid(row=7, column=0, sticky="ew", padx=14, pady=(0, 16))
 
     def _build_profile_section(self, parent: ttk.Frame, row: int, profile: ClickProfile) -> None:
         section = ttk.LabelFrame(parent, text=profile.title, padding=12)
@@ -694,19 +1116,19 @@ class AutoClickerApp:
 
         ttk.Label(
             section,
-            text=f"Este panel controla solamente el {profile.title.lower()}.",
+            text=self.t("section_controls_only", title=profile.title.lower()),
             wraplength=490,
             justify="left",
         ).grid(row=0, column=0, sticky="w", pady=(0, 10))
 
-        mode_frame = ttk.LabelFrame(section, text="Modo de activación", padding=10)
+        mode_frame = ttk.LabelFrame(section, text=self.t("activation_mode_title"), padding=10)
         mode_frame.grid(row=1, column=0, sticky="ew", pady=4)
         mode_frame.columnconfigure(0, weight=1)
 
         assert profile.mode_var is not None
         ttk.Radiobutton(
             mode_frame,
-            text="Hotkey global (activa / desactiva)",
+            text=self.t("hotkey_mode_label"),
             variable=profile.mode_var,
             value="hotkey",
             command=lambda profile_key=profile.key: self._update_profile_widgets(profile_key),
@@ -714,13 +1136,13 @@ class AutoClickerApp:
 
         ttk.Radiobutton(
             mode_frame,
-            text="Hold click (mientras mantengo presionado el click)",
+            text=self.t("hold_mode_label"),
             variable=profile.mode_var,
             value="hold",
             command=lambda profile_key=profile.key: self._update_profile_widgets(profile_key),
         ).grid(row=1, column=0, sticky="w")
 
-        hotkey_frame = ttk.LabelFrame(section, text="Hotkey global", padding=10)
+        hotkey_frame = ttk.LabelFrame(section, text=self.t("hotkey_group_title"), padding=10)
         hotkey_frame.grid(row=2, column=0, sticky="ew", pady=4)
         hotkey_frame.columnconfigure(0, weight=1)
         hotkey_frame.columnconfigure(1, weight=0)
@@ -728,7 +1150,7 @@ class AutoClickerApp:
 
         ttk.Label(
             hotkey_frame,
-            text="Toca la casilla y luego presiona la tecla, botón del mouse o ruedita que quieres usar:",
+            text=self.t("hotkey_help"),
             wraplength=470,
             justify="left",
         ).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
@@ -747,35 +1169,32 @@ class AutoClickerApp:
 
         capture_button = ttk.Button(
             hotkey_frame,
-            text="Capturar",
+            text=self.t("capture"),
             command=lambda profile_key=profile.key: self.start_hotkey_capture(profile_key),
         )
         capture_button.grid(row=1, column=1, padx=(0, 8))
 
         clear_button = ttk.Button(
             hotkey_frame,
-            text="Limpiar",
+            text=self.t("clear"),
             command=lambda profile_key=profile.key: self.clear_hotkey(profile_key),
         )
         clear_button.grid(row=1, column=2)
 
         ttk.Label(
             hotkey_frame,
-            text=(
-                "Admite teclado, botones del mouse y ruedita arriba/abajo. "
-                "Si el panel está en Hold click, esta hotkey funciona como seguro."
-            ),
+            text=self.t("hotkey_extra"),
             wraplength=470,
             justify="left",
         ).grid(row=2, column=0, columnspan=3, sticky="w", pady=(8, 0))
 
-        hold_frame = ttk.LabelFrame(section, text="Modo Hold click", padding=10)
+        hold_frame = ttk.LabelFrame(section, text=self.t("hold_group_title"), padding=10)
         hold_frame.grid(row=3, column=0, sticky="ew", pady=4)
         hold_frame.columnconfigure(1, weight=1)
 
         hold_same_check = ttk.Checkbutton(
             hold_frame,
-            text=f"Usar el mismo botón que se autoclickea ({profile.title.lower()})",
+            text=self.t("hold_same_check", title=profile.title.lower()),
             variable=profile.hold_same_var,
             command=lambda profile_key=profile.key: self._update_profile_widgets(profile_key),
         )
@@ -783,12 +1202,12 @@ class AutoClickerApp:
 
         ttk.Label(
             hold_frame,
-            text="Si desactivas la casilla, puedes elegir otro botón para mantener apretado:",
+            text=self.t("hold_pick_help"),
             wraplength=470,
             justify="left",
         ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(8, 6))
 
-        ttk.Label(hold_frame, text="Botón a mantener presionado:").grid(
+        ttk.Label(hold_frame, text=self.t("hold_button_label")).grid(
             row=2, column=0, sticky="w", padx=(0, 10)
         )
 
@@ -796,42 +1215,39 @@ class AutoClickerApp:
             hold_frame,
             textvariable=profile.hold_button_var,
             state="readonly",
-            values=list(MOUSE_OPTION_TO_NAME.keys()),
+            values=self.mouse_option_labels(),
         )
         hold_combo.grid(row=2, column=1, sticky="ew")
 
         ttk.Label(
             hold_frame,
-            text=(
-                "Mientras mantienes el botón apretado, dispara clicks; cuando sueltas el dedo, se detiene. "
-                "La hotkey de este panel puede desactivar el Hold si no quieres que arranque por accidente."
-            ),
+            text=self.t("hold_group_note"),
             wraplength=470,
             justify="left",
         ).grid(row=3, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
-        click_frame = ttk.LabelFrame(section, text="Click automático", padding=10)
+        click_frame = ttk.LabelFrame(section, text=self.t("click_group_title"), padding=10)
         click_frame.grid(row=4, column=0, sticky="ew", pady=4)
         click_frame.columnconfigure(1, weight=1)
 
-        ttk.Label(click_frame, text="Botón que se autoclickea:").grid(
+        ttk.Label(click_frame, text=self.t("output_button_label")).grid(
             row=0, column=0, sticky="w", padx=(0, 10), pady=4
         )
         ttk.Label(click_frame, text=profile.title).grid(
             row=0, column=1, sticky="w", pady=4
         )
 
-        ttk.Label(click_frame, text="Tipo de click:").grid(
+        ttk.Label(click_frame, text=self.t("click_type_label")).grid(
             row=1, column=0, sticky="w", padx=(0, 10), pady=4
         )
         ttk.Combobox(
             click_frame,
             textvariable=profile.click_type_var,
             state="readonly",
-            values=list(CLICK_TYPE_TO_COUNT.keys()),
+            values=[self.click_type_label(1), self.click_type_label(2)],
         ).grid(row=1, column=1, sticky="ew", pady=4)
 
-        ttk.Label(click_frame, text="Intervalo (ms):").grid(
+        ttk.Label(click_frame, text=self.t("interval_label")).grid(
             row=2, column=0, sticky="w", padx=(0, 10), pady=4
         )
         tk.Spinbox(
@@ -844,29 +1260,29 @@ class AutoClickerApp:
 
         ttk.Label(
             click_frame,
-            text="Ejemplo: 100 ms = 10 clicks por segundo aprox.",
+            text=self.t("interval_help"),
             wraplength=470,
             justify="left",
         ).grid(row=3, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
-        control_frame = ttk.LabelFrame(section, text="Control", padding=10)
+        control_frame = ttk.LabelFrame(section, text=self.t("control_title"), padding=10)
         control_frame.grid(row=5, column=0, sticky="ew", pady=4)
         control_frame.columnconfigure(0, weight=1)
         control_frame.columnconfigure(1, weight=1)
 
         ttk.Button(
             control_frame,
-            text="Detener ahora",
+            text=self.t("stop_now"),
             command=lambda profile_key=profile.key: self.force_stop(profile_key),
         ).grid(row=0, column=0, sticky="ew", padx=(0, 6))
 
         ttk.Button(
             control_frame,
-            text="Click de prueba",
+            text=self.t("test_click"),
             command=lambda profile_key=profile.key: self.test_click(profile_key),
         ).grid(row=0, column=1, sticky="ew", padx=(6, 0))
 
-        status_frame = ttk.LabelFrame(section, text="Estado", padding=10)
+        status_frame = ttk.LabelFrame(section, text=self.t("status_title"), padding=10)
         status_frame.grid(row=6, column=0, sticky="ew", pady=4)
         status_frame.columnconfigure(0, weight=1)
 
@@ -911,9 +1327,9 @@ class AutoClickerApp:
             profile.hold_button = (
                 profile.output_button
                 if profile.hold_same_as_output
-                else MOUSE_OPTION_TO_NAME.get(profile.hold_button_var.get(), profile.output_button)
+                else self.mouse_name_from_label(profile.hold_button_var.get())
             )
-            profile.click_count = CLICK_TYPE_TO_COUNT.get(profile.click_type_var.get(), 1)
+            profile.click_count = self.click_count_from_label(profile.click_type_var.get())
 
             try:
                 interval_ms = float(str(profile.interval_var.get()).replace(",", "."))
@@ -996,10 +1412,8 @@ class AutoClickerApp:
         profile = self.profiles[profile_key]
         assert profile.hotkey_text_var is not None
 
-        profile.hotkey_text_var.set("Presione la tecla que desea usar para activar...")
-        self.note_var.set(
-            f"Esperando hotkey para {profile.title.lower()}: tecla, botón del mouse o ruedita."
-        )
+        profile.hotkey_text_var.set(self.t("hotkey_capture_prompt"))
+        self.note_var.set(self.t("waiting_hotkey_note", title=profile.title.lower()))
         with self.lock:
             self.capture_target = profile_key
             self.capture_armed_at = time.monotonic() + 0.15
@@ -1015,8 +1429,8 @@ class AutoClickerApp:
                 self.capture_target = None
             self.debounced_triggers.clear()
 
-        profile.hotkey_text_var.set("Haz clic aquí para elegir hotkey")
-        self.note_var.set(f"Hotkey borrada para {profile.title.lower()}.")
+        profile.hotkey_text_var.set(self.default_hotkey_prompt())
+        self.note_var.set(self.t("hotkey_cleared_note", title=profile.title.lower()))
 
     def force_stop(self, profile_key: str) -> None:
         profile = self.profiles[profile_key]
@@ -1031,22 +1445,16 @@ class AutoClickerApp:
 
         if profile.mode == "hold":
             if has_hotkey:
-                self.note_var.set(
-                    f"{profile.title} detenido manualmente. El Hold quedó deshabilitado hasta volver a activarlo con su hotkey."
-                )
+                self.note_var.set(self.t("manual_stop_hold_disabled", title=profile.title))
             else:
-                self.note_var.set(
-                    f"{profile.title} detenido manualmente. Como ese panel no tiene hotkey, el Hold sigue disponible cuando vuelvas a mantener presionado."
-                )
+                self.note_var.set(self.t("manual_stop_hold_available", title=profile.title))
         else:
-            self.note_var.set(f"{profile.title} detenido manualmente.")
+            self.note_var.set(self.t("manual_stop", title=profile.title))
 
     def test_click(self, profile_key: str) -> None:
         profile = self.profiles[profile_key]
         delay_seconds = 0.35
-        self.note_var.set(
-            f"{profile.title}: click de prueba en {delay_seconds:.2f} segundos para que puedas mover el cursor."
-        )
+        self.note_var.set(self.t("test_click_note", title=profile.title, seconds=delay_seconds))
         threading.Thread(
             target=self._delayed_test_click,
             args=(profile_key, delay_seconds),
@@ -1065,7 +1473,7 @@ class AutoClickerApp:
             profile = self.profiles[profile_key]
             self.root.after(
                 0,
-                lambda: self.note_var.set(f"Click de prueba realizado para {profile.title.lower()}."),
+                lambda: self.note_var.set(self.t("test_click_done", title=profile.title.lower())),
             )
 
     def _refresh_status_loop(self) -> None:
@@ -1089,20 +1497,20 @@ class AutoClickerApp:
             hold_is_pressed = profile.hold_engaged
 
         if capture_target == profile_key:
-            base = "Esperando hotkey..."
+            base = self.t("status_waiting_hotkey")
         elif mode == "hotkey":
-            base = "Activo" if active else "Detenido"
+            base = self.t("status_active") if active else self.t("status_stopped")
         else:
             if not hold_gate_enabled:
-                base = "Hold deshabilitado"
+                base = self.t("status_hold_disabled")
             elif hold_is_pressed:
-                base = "Activo (mantener presionado)"
+                base = self.t("status_hold_pressed")
             else:
-                base = "Esperando que mantengas presionado"
+                base = self.t("status_hold_waiting")
 
         if hotkey_binding:
-            return f"{base} | Hotkey: {hotkey_binding['display']}"
-        return f"{base} | Sin hotkey"
+            return f"{base} | {self.t('status_hotkey', display=self._format_binding_display(hotkey_binding))}"
+        return f"{base} | {self.t('status_no_hotkey')}"
 
     def _click_loop(self) -> None:
         while self.running:
@@ -1188,18 +1596,6 @@ class AutoClickerApp:
             time.sleep(0.001)
             self.mouse_controller.press(button_obj)
 
-    def _is_mouse_button_physically_pressed(self, button_name: str) -> bool:
-        with self.lock:
-            if button_name in self.pressed_mouse_buttons:
-                return True
-
-        if _USER32 is not None:
-            vk_code = _VK_BY_MOUSE_NAME.get(button_name)
-            if vk_code is not None:
-                return bool(_USER32.GetAsyncKeyState(vk_code) & 0x8000)
-
-        return False
-
     def _consume_synthetic_mouse_event(self, button_name: str) -> bool:
         if sys.platform.startswith("win"):
             return False
@@ -1240,13 +1636,7 @@ class AutoClickerApp:
             return
         self._release_trigger(binding)
 
-    def _on_mouse_click(
-        self,
-        _x: int,
-        _y: int,
-        button: mouse.Button,
-        pressed: bool,
-    ) -> None:
+    def _on_mouse_click(self, _x: int, _y: int, button: mouse.Button, pressed: bool) -> None:
         binding = self._binding_from_mouse_button(button)
         if binding is None:
             return
@@ -1275,13 +1665,7 @@ class AutoClickerApp:
         else:
             self._release_trigger(binding)
 
-    def _on_mouse_scroll(
-        self,
-        _x: int,
-        _y: int,
-        _dx: int,
-        dy: int,
-    ) -> None:
+    def _on_mouse_scroll(self, _x: int, _y: int, _dx: int, dy: int) -> None:
         if dy == 0:
             return
 
@@ -1315,8 +1699,10 @@ class AutoClickerApp:
     def _apply_hotkey_capture_ui(self, profile_key: str, binding: dict[str, str]) -> None:
         profile = self.profiles[profile_key]
         assert profile.hotkey_text_var is not None
-        profile.hotkey_text_var.set(binding["display"])
-        self.note_var.set(f"Hotkey capturada para {profile.title.lower()}: {binding['display']}")
+        profile.hotkey_text_var.set(self._format_binding_display(binding))
+        self.note_var.set(
+            self.t("hotkey_captured_note", title=profile.title.lower(), display=self._format_binding_display(binding))
+        )
 
     def _trigger_binding(self, binding: dict[str, str], use_debounce: bool) -> None:
         binding_id = self._binding_id(binding)
@@ -1337,17 +1723,15 @@ class AutoClickerApp:
                     profile.active = not profile.active
                     if not profile.active:
                         profile.next_due_at = 0.0
-                    messages.append(
-                        f"{profile.title}: {'activado' if profile.active else 'desactivado'}"
-                    )
+                    state = self.t("toggle_active_on") if profile.active else self.t("toggle_active_off")
+                    messages.append(self.t("toggle_active", title=profile.title, state=state))
                 else:
                     profile.hold_gate_enabled = not profile.hold_gate_enabled
                     if not profile.hold_gate_enabled:
                         profile.next_due_at = 0.0
                         profile.hold_engaged = False
-                    messages.append(
-                        f"{profile.title}: hold {'habilitado' if profile.hold_gate_enabled else 'deshabilitado'}"
-                    )
+                    state = self.t("toggle_hold_on") if profile.hold_gate_enabled else self.t("toggle_hold_off")
+                    messages.append(self.t("toggle_hold", title=profile.title, state=state))
 
             if not messages:
                 return
@@ -1359,7 +1743,7 @@ class AutoClickerApp:
             joined = " | ".join(messages)
             self.root.after(
                 0,
-                lambda: self.note_var.set(f"{joined} por {binding['display']}"),
+                lambda: self.note_var.set(self.t("trigger_by_binding", text=joined, display=self._format_binding_display(binding))),
             )
 
     def _release_trigger(self, binding: dict[str, str]) -> None:
@@ -1384,8 +1768,7 @@ class AutoClickerApp:
             return mouse.Button.x2
         return None
 
-    @staticmethod
-    def _binding_from_mouse_button(button: mouse.Button) -> dict[str, str] | None:
+    def _binding_from_mouse_button(self, button: mouse.Button) -> dict[str, str] | None:
         name = getattr(button, "name", None)
         if not name:
             raw = str(button)
@@ -1397,19 +1780,23 @@ class AutoClickerApp:
         return {
             "kind": "mouse",
             "code": f"button:{name}",
-            "display": MOUSE_DISPLAY.get(name, f"Mouse {name}"),
+            "display": self.mouse_label(name),
         }
 
-    @staticmethod
-    def _binding_from_wheel(direction: str) -> dict[str, str]:
+    def _binding_from_wheel(self, direction: str) -> dict[str, str]:
         return {
             "kind": "wheel",
             "code": direction,
-            "display": "Ruedita arriba" if direction == "up" else "Ruedita abajo",
+            "display": self.t("wheel_up") if direction == "up" else self.t("wheel_down"),
         }
 
-    @staticmethod
-    def _binding_from_key(key: keyboard.Key | keyboard.KeyCode) -> dict[str, str] | None:
+    def _key_display(self, name: str) -> str:
+        key_text_key = KEY_TEXT_KEYS.get(name)
+        if key_text_key:
+            return self.t(key_text_key)
+        return name.replace("_", " ").upper()
+
+    def _binding_from_key(self, key: keyboard.Key | keyboard.KeyCode) -> dict[str, str] | None:
         char = getattr(key, "char", None)
         if char:
             if char == "\r":
@@ -1419,7 +1806,7 @@ class AutoClickerApp:
             elif char == " ":
                 char = "space"
 
-            display = KEY_DISPLAY.get(char, char.upper() if len(char) == 1 else char.upper())
+            display = self._key_display(char) if len(char) > 1 else char.upper()
             return {
                 "kind": "keyboard",
                 "code": f"char:{char.lower()}",
@@ -1437,12 +1824,31 @@ class AutoClickerApp:
         if not name:
             return None
 
-        display = KEY_DISPLAY.get(name, name.replace("_", " ").upper())
         return {
             "kind": "keyboard",
             "code": f"key:{name}",
-            "display": display,
+            "display": self._key_display(name),
         }
+
+    def _format_binding_display(self, binding: dict[str, str] | None) -> str:
+        if not binding:
+            return self.default_hotkey_prompt()
+
+        kind = binding.get("kind", "")
+        code = binding.get("code", "")
+
+        if kind == "mouse" and code.startswith("button:"):
+            return self.mouse_label(code.split(":", 1)[1])
+        if kind == "wheel":
+            return self.t("wheel_up") if code == "up" else self.t("wheel_down")
+        if kind == "keyboard":
+            if code.startswith("char:"):
+                value = code.split(":", 1)[1]
+                return self._key_display(value) if len(value) > 1 else value.upper()
+            if code.startswith("key:"):
+                return self._key_display(code.split(":", 1)[1])
+
+        return binding.get("display", code or self.default_hotkey_prompt())
 
     def on_close(self) -> None:
         if getattr(self, "initialized", False):
